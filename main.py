@@ -20,7 +20,7 @@ colors = [0x1abc9c, 0x11806a, 0x2ecc71, 0x1f8b4c, 0x3498db, 0x206694, 0x9b59b6, 
 @client.event
 async def on_ready():
     await tree.sync()
-    await client.change_presence(status=discord.Status.do_not_disturb, activity=discord.Activity(type=discord.ActivityType.watching, name="a praia de santos 🏄"))
+    await client.change_presence(status=discord.Status.do_not_disturb, activity=discord.Activity(type=discord.ActivityType.watching, name="the next sale 💸"))
     
     print(f'{client.user} has connected to Discord!')
 
@@ -76,9 +76,13 @@ async def player_count(ctx, appid: str):
 async def search_game(ctx, *, appid: int):
     await ctx.response.defer()
 
+    headers = {
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+
     url = f"https://store.steampowered.com/api/appdetails?appids={appid}"
 
-    r = requests.get(url)
+    r = requests.get(url, headers=headers)
 
     if r.status_code == 200:
         data = r.json()
@@ -88,18 +92,24 @@ async def search_game(ctx, *, appid: int):
         if data[str(appid)]['success'] == True:
             game_name = data[str(appid)]['data']['name']
             game_description = data[str(appid)]['data']['short_description']
-            game_url = data[str(appid)]['data']['steam_app_url']
+            game_url = f"https://store.steampowered.com/app/{appid}/"
             game_image = data[str(appid)]['data']['header_image']
+            main_image = data[str(appid)]['data']['screenshots'][0]['path_full']
+            try: 
+                game_price = data[str(appid)]['data']['price_overview']['final_formatted']
+            except KeyError:
+                game_price = "Free to Play"
 
             embed = discord.Embed(
-                title=game_name,
+                title=game_name + " - APPID: " + str(appid),
                 description=game_description,
                 color=random.choice(colors),
                 url=game_url
             )
 
-            embed.set_thumbnail(url=game_image)
-            embed.add_field(name="Price", value="00", inline=False)
+            embed.set_thumbnail(url=main_image)
+            embed.set_image(url=game_image)
+            embed.add_field(name="Price", value=game_price, inline=False)
 
             await ctx.followup.send(embed=embed)
 
@@ -108,6 +118,51 @@ async def search_game(ctx, *, appid: int):
         
     else:
         await ctx.followup.send(f"Game not found. Use a valid APP ID.")
+
+
+@tree.command(name="user-summary", description="Show the summary of a steam user.")
+async def user_summary(ctx, *, steamid: str):
+    await ctx.response.defer()
+
+    url = f"https://steamcommunity.com/profiles/{steamid}/?xml=1"
+
+    r = requests.get(url)
+
+    soup = BeautifulSoup(r.content, "html.parser")
+    dom = etree.HTML(str(soup))
+
+    # TO DO: FIX THIS MESS
+    
+
+    if r.status_code == 200:
+        user_avi = r.text.split("<avatarFull>")[1].split("</avatarFull>")[0]
+        user_name = r.text.split("<steamID>")[1].split("</steamID>")[0]
+        user_real_name = r.text.split("<realname>")[1].split("</realname>")[0]
+        user_country = "Brazil"
+        user_custom_url = r.text.split("<customURL>")[1].split("</customURL>")[0]
+        user_member_since = r.text.split("<memberSince>")[1].split("</memberSince>")[0]
+        user_profile_url = f"https://steamcommunity.com/profiles/{steamid}/"
+
+        embed = discord.Embed(
+            title=user_name,
+            description="User Summary",
+            color=random.choice(colors),
+            url=user_profile_url
+        )
+
+        print(user_avi)
+
+        embed.set_thumbnail(url=user_avi)
+        embed.add_field(name="Real Name", value=user_real_name, inline=True)
+        embed.add_field(name="Country", value=user_country, inline=True)
+        embed.add_field(name="Custom URL", value=user_custom_url, inline=True)
+        embed.add_field(name="Member Since", value=user_member_since, inline=True)
+
+        await ctx.followup.send(embed=embed)
+
+
+
+
 
 
 if __name__ == '__main__':
